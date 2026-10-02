@@ -88,7 +88,11 @@ async function readMetaError(response: Response, fallback: string): Promise<Meta
   try {
     const data = (await response.json()) as MetaErrorResponse
     envelope = data.error
-    if (envelope?.message) message = envelope.message
+    if (envelope?.message) {
+      message = envelope.error_data?.details
+        ? `${envelope.message}: ${envelope.error_data.details}`
+        : envelope.message
+    }
   } catch {
     // response body wasn't JSON — keep the fallback
   }

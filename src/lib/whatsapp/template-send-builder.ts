@@ -129,7 +129,7 @@ function buildBodyComponent(
 ): MetaSendComponent | null {
   const varCount = extractVariableIndices(template.body_text).length;
   const body = params.body ?? [];
-  if (varCount === 0 && body.length === 0) return null;
+  if (varCount === 0) return null;
   if (body.length < varCount) {
     throw new Error(
       `Body has ${varCount} variable(s) but only ${body.length} value(s) were supplied.`,

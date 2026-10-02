@@ -26,7 +26,8 @@ export function isMessageTemplate(row: unknown): row is MessageTemplate {
     typeof r.id === 'string' &&
     typeof r.user_id === 'string' &&
     typeof r.name === 'string' &&
-    typeof r.body_text === 'string'
+    typeof r.body_text === 'string' &&
+    r.body_text.trim().length > 0
   );
 }
 

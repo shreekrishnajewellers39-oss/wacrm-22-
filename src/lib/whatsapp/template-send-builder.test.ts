@@ -54,6 +54,14 @@ describe('buildSendComponents — body', () => {
       { type: 'body', parameters: [{ type: 'text', text: 'John' }] },
     ]);
   });
+
+  it('omits body component when template has no variables even if params.body contains values', () => {
+    const components = buildSendComponents(
+      row({ body_text: 'Static body with no variables.' }),
+      { body: ['unexpected', 'values'] },
+    );
+    expect(components).toEqual([]);
+  });
 });
 
 describe('buildSendComponents — header', () => {

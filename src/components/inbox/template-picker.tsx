@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { extractVariableIndices } from "@/lib/whatsapp/template-validators";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 export interface TemplateSendValues {
   body: string[];
@@ -145,6 +146,12 @@ export function TemplatePicker({
   }
 
   function pickTemplate(template: MessageTemplate) {
+    if (!template.body_text || !template.body_text.trim()) {
+      toast.error(
+        "This template is not synced from Meta yet. Please go to Settings → WhatsApp Templates and click 'Sync from Meta'."
+      );
+      return;
+    }
     const slots = collectVariableSlots(template);
     const noInputsNeeded =
       slots.bodyVars.length === 0 &&
@@ -237,9 +244,14 @@ export function TemplatePicker({
                             {t.language}
                           </span>
                         )}
+                        {!t.body_text?.trim() && (
+                          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-500">
+                            Needs sync
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                        {t.body_text}
+                        {t.body_text?.trim() ? t.body_text : "Template details not synced yet. Run 'Sync from Meta' in Settings."}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
