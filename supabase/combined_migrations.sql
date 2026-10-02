@@ -1,4 +1,4 @@
--- Combined Migrations (001 to 042)
+-- Combined Migrations (001 to 043)
 
 
 
@@ -4200,7 +4200,7 @@ CREATE TABLE IF NOT EXISTS ai_configs (
   id                                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id                        uuid NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
   created_by                        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  provider                          text NOT NULL CHECK (provider IN ('openai', 'anthropic')),
+  provider                          text NOT NULL CHECK (provider IN ('openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'openrouter')),
   model                             text NOT NULL,
   api_key                           text NOT NULL,            -- AES-256-GCM-encrypted BYO provider key
   system_prompt                     text,                     -- business context / persona / tone
@@ -4711,7 +4711,7 @@ CREATE TABLE IF NOT EXISTS ai_usage_log (
   conversation_id   uuid REFERENCES conversations(id) ON DELETE SET NULL,
   -- 'auto_reply' | 'draft' — which surface spent the tokens.
   mode              text NOT NULL CHECK (mode IN ('auto_reply', 'draft')),
-  provider          text NOT NULL CHECK (provider IN ('openai', 'anthropic')),
+  provider          text NOT NULL CHECK (provider IN ('openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'openrouter')),
   model             text NOT NULL,
   prompt_tokens     integer NOT NULL DEFAULT 0,
   completion_tokens integer NOT NULL DEFAULT 0,
@@ -5672,3 +5672,44 @@ COMMENT ON COLUMN messages.error_details IS
   'Meta''s human-readable explanation from a failed status webhook '
   '(errors[0].error_data.details). NULL unless the message failed and Meta '
   'supplied details.';
+
+
+-- ============================================================
+-- FILE: 043_add_ai_providers.sql
+-- ============================================================
+
+-- ============================================================
+-- 043_add_ai_providers
+--
+-- Expands supported AI providers in `ai_configs` and `ai_usage_log`
+-- beyond OpenAI and Anthropic to include:
+--   - 'gemini'     (Google AI Studio / Gemini)
+--   - 'groq'       (Groq Llama 3)
+--   - 'deepseek'   (DeepSeek)
+--   - 'openrouter' (OpenRouter)
+--
+-- Idempotent — safe to re-run.
+-- ============================================================
+
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT conname, relname
+        FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE t.relname IN ('ai_configs', 'ai_usage_log')
+          AND c.contype = 'c'
+          AND pg_get_constraintdef(c.oid) LIKE '%provider%'
+    ) LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.relname) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname);
+    END LOOP;
+END $$;
+
+ALTER TABLE ai_configs ADD CONSTRAINT ai_configs_provider_check 
+  CHECK (provider IN ('openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'openrouter'));
+
+ALTER TABLE ai_usage_log ADD CONSTRAINT ai_usage_log_provider_check 
+  CHECK (provider IN ('openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'openrouter'));
+

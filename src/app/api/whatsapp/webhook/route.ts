@@ -88,6 +88,8 @@ interface WhatsAppMessage {
   button?: { text?: string; payload?: string }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
+  /** Present on messages with type 'unsupported' containing Meta error details. */
+  errors?: MetaStatusError[]
 }
 
 /** One entry of a failed status's `errors` array, as Meta sends it. */
@@ -1182,6 +1184,44 @@ async function parseMessageContent(
         ...empty,
         contentText: label || payload,
         interactiveReplyId: payload || label,
+      }
+    }
+
+    case 'contacts': {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const contactsList = (message as any).contacts
+      if (Array.isArray(contactsList) && contactsList.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const desc = contactsList
+          .map((c: any) => {
+            const name = c.name?.formatted_name || c.name?.first_name || 'Contact'
+            const phone = c.phones?.[0]?.phone ? ` (${c.phones[0].phone})` : ''
+            return `${name}${phone}`
+          })
+          .join(', ')
+        return { ...empty, contentText: `[Contact card: ${desc}]` }
+      }
+      return { ...empty, contentText: '[Contact card]' }
+    }
+
+    case 'unsupported': {
+      // Meta delivers `type: 'unsupported'` with error code 131051 when an
+      // inbound message format cannot be processed by the Cloud API — common
+      // culprits are system OTPs / Authentication Templates, disappearing
+      // messages, polls, view-once media, or live location. Meta deliberately
+      // strips the message body/text from the payload.
+      const errorObj = message.errors?.[0]
+      const detail =
+        errorObj?.error_data?.details || errorObj?.message || errorObj?.title
+      console.warn(
+        `[webhook] Received unsupported message type (${message.id}):`,
+        message.errors ?? 'No error details provided by Meta'
+      )
+      return {
+        ...empty,
+        contentText: detail
+          ? `[Unsupported message: ${detail}]`
+          : '[Unsupported message: Format not supported by Meta (e.g. system OTP, poll, or disappearing message)]',
       }
     }
 

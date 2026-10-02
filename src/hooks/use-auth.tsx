@@ -203,12 +203,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const error = result.error;
-        console.error("[AuthProvider] fetchProfile error:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
+        console.error(
+          "[AuthProvider] fetchProfile error:",
+          error.message || error.code || "Unknown error",
+          {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          },
+        );
         // One hiccup here used to lock the session read-only for good:
         // the profile stayed null, so every `useCan` gate answered
         // false and no page offered a way to recover (issue #471).
@@ -243,12 +247,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq("id", data.account_id)
             .maybeSingle();
           if (accountErr) {
-            console.error("[AuthProvider] fetchAccount error:", {
-              message: accountErr.message,
-              details: accountErr.details,
-              hint: accountErr.hint,
-              code: accountErr.code,
-            });
+            console.error(
+              "[AuthProvider] fetchAccount error:",
+              accountErr.message || accountErr.code || "Unknown error",
+              {
+                message: accountErr.message,
+                details: accountErr.details,
+                hint: accountErr.hint,
+                code: accountErr.code,
+              },
+            );
           } else if (account) {
             accountRow = {
               id: account.id,

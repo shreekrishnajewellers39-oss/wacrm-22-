@@ -192,3 +192,95 @@ describe('generateReply — Anthropic', () => {
     expect(body.messages).toHaveLength(1)
   })
 })
+
+describe('generateReply — Gemini', () => {
+  it('calls the Google AI Studio endpoint and parses candidates and usageMetadata', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'Namaste! Welcome to our Jewellery store.' }],
+              role: 'model',
+            },
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 25,
+          candidatesTokenCount: 10,
+          totalTokenCount: 35,
+        },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await generateReply({
+      config: config({ provider: 'gemini', model: 'gemini-2.0-flash', apiKey: 'AIzaSyTest' }),
+      systemPrompt: 'sys prompt',
+      messages: [{ role: 'user', content: 'What is today gold rate?' }],
+    })
+
+    expect(res).toEqual({
+      text: 'Namaste! Welcome to our Jewellery store.',
+      handoff: false,
+      usage: { promptTokens: 25, completionTokens: 10, totalTokens: 35 },
+    })
+
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toContain('generativelanguage.googleapis.com')
+    expect(url).toContain('gemini-2.0-flash')
+    expect(opts.headers['x-goog-api-key']).toBe('AIzaSyTest')
+    const body = JSON.parse(opts.body)
+    expect(body.systemInstruction.parts[0].text).toBe('sys prompt')
+    expect(body.contents[0].role).toBe('user')
+    expect(body.contents[0].parts[0].text).toBe('What is today gold rate?')
+  })
+
+  it('detects handoff in Gemini output', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        okResponse({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Connecting with manager [[HANDOFF]]' }],
+                role: 'model',
+              },
+            },
+          ],
+        }),
+      ),
+    )
+    const res = await generateReply({
+      config: config({ provider: 'gemini', model: 'gemini-2.0-flash' }),
+      systemPrompt: 'sys',
+      messages: [{ role: 'user', content: 'Can you give discount?' }],
+    })
+    expect(res.handoff).toBe(true)
+    expect(res.text).toBe('Connecting with manager')
+  })
+})
+
+describe('generateReply — Groq / DeepSeek / OpenRouter', () => {
+  it('calls Groq endpoint with Bearer auth', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        choices: [{ message: { content: 'Groq reply' } }],
+        usage: { prompt_tokens: 15, completion_tokens: 5, total_tokens: 20 },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await generateReply({
+      config: config({ provider: 'groq', model: 'llama-3.3-70b-versatile', apiKey: 'gsk_test' }),
+      systemPrompt: 'sys',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+
+    expect(res.text).toBe('Groq reply')
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.groq.com/openai/v1/chat/completions')
+    expect(opts.headers.Authorization).toBe('Bearer gsk_test')
+  })
+})

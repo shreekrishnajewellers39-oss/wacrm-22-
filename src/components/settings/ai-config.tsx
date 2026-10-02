@@ -26,7 +26,10 @@ import {
 } from '@/components/ui/select';
 import { SettingsPanelHead } from './settings-panel-head';
 import { AiKnowledgeCard } from './ai-knowledge';
-import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults';
+import {
+  AI_PROVIDER_DEFAULT_MODEL,
+  JEWELRY_SHOP_PROMPT_PRESET,
+} from '@/lib/ai/defaults';
 import type { AiProvider } from '@/lib/ai/types';
 import type { AccountMember } from '@/types';
 import { fetchAccountMembers, memberLabel } from '@/lib/account/members';
@@ -39,13 +42,21 @@ const MASKED_KEY = '••••••••••••••••';
 const HANDOFF_QUEUE = '__queue__';
 
 const PROVIDER_LABEL: Record<AiProvider, string> = {
+  gemini: 'Google AI Studio (Gemini)',
   openai: 'OpenAI',
   anthropic: 'Anthropic (Claude)',
+  groq: 'Groq',
+  deepseek: 'DeepSeek',
+  openrouter: 'OpenRouter',
 };
 
 const KEY_PLACEHOLDER: Record<AiProvider, string> = {
+  gemini: 'AIzaSy...',
   openai: 'sk-...',
   anthropic: 'sk-ant-...',
+  groq: 'gsk_...',
+  deepseek: 'sk-...',
+  openrouter: 'sk-or-...',
 };
 
 export function AiConfig() {
@@ -129,8 +140,7 @@ export function AiConfig() {
   const handleProviderChange = (next: AiProvider) => {
     setProvider(next);
     const isDefaultModel =
-      model === AI_PROVIDER_DEFAULT_MODEL.openai ||
-      model === AI_PROVIDER_DEFAULT_MODEL.anthropic ||
+      Object.values(AI_PROVIDER_DEFAULT_MODEL).includes(model) ||
       model.trim() === '';
     if (isDefaultModel) setModel(AI_PROVIDER_DEFAULT_MODEL[next]);
   };
@@ -277,10 +287,11 @@ export function AiConfig() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
-                    <SelectItem value="anthropic">
-                      {PROVIDER_LABEL.anthropic}
-                    </SelectItem>
+                    {(Object.keys(PROVIDER_LABEL) as AiProvider[]).map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {PROVIDER_LABEL[p]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -345,6 +356,58 @@ export function AiConfig() {
                   {t('testKey')}
                 </Button>
               </div>
+              {provider === 'gemini' && (
+                <p className="text-xs text-muted-foreground">
+                  Get your free Gemini API key from{' '}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-85"
+                  >
+                    Google AI Studio
+                  </a>
+                </p>
+              )}
+              {provider === 'groq' && (
+                <p className="text-xs text-muted-foreground">
+                  Get your free Groq key from{' '}
+                  <a
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-85"
+                  >
+                    Groq Console
+                  </a>
+                </p>
+              )}
+              {provider === 'deepseek' && (
+                <p className="text-xs text-muted-foreground">
+                  Get your DeepSeek API key from{' '}
+                  <a
+                    href="https://platform.deepseek.com/api_keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-85"
+                  >
+                    DeepSeek Platform
+                  </a>
+                </p>
+              )}
+              {provider === 'openrouter' && (
+                <p className="text-xs text-muted-foreground">
+                  Get your OpenRouter key from{' '}
+                  <a
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-85"
+                  >
+                    OpenRouter.ai
+                  </a>
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -390,13 +453,25 @@ export function AiConfig() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="ai-prompt">{t('businessContext')}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ai-prompt">{t('businessContext')}</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs font-normal"
+                  onClick={() => setSystemPrompt(JEWELRY_SHOP_PROMPT_PRESET)}
+                  disabled={disabled}
+                >
+                  ✨ Load Jewellery Shop Template
+                </Button>
+              </div>
               <Textarea
                 id="ai-prompt"
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 placeholder={t('promptPlaceholder')}
-                rows={5}
+                rows={8}
                 disabled={disabled}
               />
             </div>
