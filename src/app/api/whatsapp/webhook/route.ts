@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl } from '@/lib/whatsapp/meta-api'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import {
@@ -1188,12 +1188,15 @@ async function parseMessageContent(
     }
 
     case 'contacts': {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const contactsList = (message as any).contacts
-      if (Array.isArray(contactsList) && contactsList.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      interface WaContactCard {
+        name?: { formatted_name?: string; first_name?: string }
+        phones?: Array<{ phone?: string }>
+      }
+      const rawContacts = (message as { contacts?: unknown }).contacts
+      if (Array.isArray(rawContacts) && rawContacts.length > 0) {
+        const contactsList = rawContacts as WaContactCard[]
         const desc = contactsList
-          .map((c: any) => {
+          .map((c) => {
             const name = c.name?.formatted_name || c.name?.first_name || 'Contact'
             const phone = c.phones?.[0]?.phone ? ` (${c.phones[0].phone})` : ''
             return `${name}${phone}`
