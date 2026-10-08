@@ -6,7 +6,7 @@ import { decrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
 /**
  * POST /api/whatsapp/read
  *
- * Body: { conversation_id: string }
+ * Body: { conversation_id: string, message_id?: string }
  *
  * Marks inbound messages in this conversation as read locally in Supabase
  * and dispatches a "read" status to Meta WhatsApp Cloud API so that the
@@ -17,7 +17,10 @@ export async function POST(request: Request) {
     const { supabase, accountId } = await requireRole('viewer');
 
     const body = await request.json();
-    const { conversation_id } = body as { conversation_id?: string };
+    const { conversation_id, message_id: clientMessageId } = body as {
+      conversation_id?: string;
+      message_id?: string;
+    };
 
     if (!conversation_id) {
       return NextResponse.json(
@@ -26,56 +29,63 @@ export async function POST(request: Request) {
       );
     }
 
-    // Reset unread_count on the conversation
+    // 1. Reset unread_count on the conversation
     await supabase
       .from('conversations')
       .update({ unread_count: 0 })
       .eq('id', conversation_id)
       .eq('account_id', accountId);
 
-    // Find any unread inbound customer messages
-    const { data: unreadMessages } = await supabase
+    // 2. Mark unread messages in DB as read
+    await supabase
       .from('messages')
-      .select('id, message_id, status, sender_type')
+      .update({ status: 'read' })
       .eq('conversation_id', conversation_id)
       .eq('sender_type', 'customer')
-      .neq('status', 'read')
-      .order('created_at', { ascending: false })
-      .limit(10);
+      .neq('status', 'read');
 
-    if (unreadMessages && unreadMessages.length > 0) {
-      const msgIds = unreadMessages.map((m) => m.id);
-      await supabase
+    // 3. Resolve the target Meta message ID (wamid)
+    let targetMetaId = clientMessageId;
+    if (!targetMetaId || !targetMetaId.startsWith('wamid.')) {
+      const { data: latestMsg } = await supabase
         .from('messages')
-        .update({ status: 'read' })
-        .in('id', msgIds);
+        .select('message_id')
+        .eq('conversation_id', conversation_id)
+        .eq('sender_type', 'customer')
+        .not('message_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      // In WhatsApp Cloud API, marking the latest inbound message as read
-      // marks the thread as read and shows blue ticks to the sender.
-      const targetMessage = unreadMessages.find((m) => m.message_id);
-      if (targetMessage?.message_id) {
-        const { data: config } = await supabase
-          .from('whatsapp_config')
-          .select('phone_number_id, access_token')
-          .eq('account_id', accountId)
-          .maybeSingle();
+      if (latestMsg?.message_id) {
+        targetMetaId = latestMsg.message_id;
+      }
+    }
 
-        if (config?.phone_number_id && config?.access_token) {
-          const accessToken = isLegacyFormat(config.access_token)
-            ? config.access_token
-            : decrypt(config.access_token);
+    // 4. Send read receipt to Meta Cloud API if we have a target message
+    if (targetMetaId && targetMetaId.startsWith('wamid.')) {
+      const { data: config } = await supabase
+        .from('whatsapp_config')
+        .select('phone_number_id, access_token')
+        .eq('account_id', accountId)
+        .maybeSingle();
 
-          await markMessageAsRead({
-            phoneNumberId: config.phone_number_id,
-            accessToken,
-            messageId: targetMessage.message_id,
-          });
-        }
+      if (config?.phone_number_id && config?.access_token) {
+        const accessToken = isLegacyFormat(config.access_token)
+          ? config.access_token
+          : decrypt(config.access_token);
+
+        await markMessageAsRead({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          messageId: targetMetaId,
+        });
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Error in /api/whatsapp/read:', error);
     return toErrorResponse(error);
   }
 }

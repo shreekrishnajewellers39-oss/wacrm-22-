@@ -454,15 +454,39 @@ export function MessageThread({
       .then(({ error }) => {
         if (error) console.error("Failed to reset unread_count:", error);
       });
+  }, [conversationId, hasUnread]);
+
+  // Dispatch WhatsApp Blue Tick read receipt to Meta Cloud API whenever
+  // customer messages are loaded or arrive in the active conversation
+  const lastReadMetaIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!conversationId || messages.length === 0) return;
+
+    // Find the latest inbound message from the customer
+    const customerMsgs = messages.filter(
+      (m) => m.sender_type === "customer" && m.message_id
+    );
+    if (customerMsgs.length === 0) return;
+
+    const latestCustomerMsg = customerMsgs[customerMsgs.length - 1];
+    if (!latestCustomerMsg?.message_id) return;
+
+    // Avoid duplicate calls for the exact same message
+    if (lastReadMetaIdRef.current === latestCustomerMsg.message_id) return;
+    lastReadMetaIdRef.current = latestCustomerMsg.message_id;
 
     fetch("/api/whatsapp/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversation_id: conversationId }),
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        message_id: latestCustomerMsg.message_id,
+      }),
     }).catch((err) => {
       console.warn("Failed to dispatch WhatsApp read receipt:", err);
     });
-  }, [conversationId, hasUnread]);
+  }, [conversationId, messages]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
