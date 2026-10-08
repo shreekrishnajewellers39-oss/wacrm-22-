@@ -21,16 +21,19 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "Shree Krishna Jewellers CRM",
+    template: "%s — Shree Krishna Jewellers CRM",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "WhatsApp CRM for Shree Krishna Jewellers.",
   robots: {
     index: false,
     follow: false,
   },
   icons: {
-    icon: [{ url: "/icon" }],
+    icon: [
+      { url: "/logo.png" },
+      { url: "/icon.png" },
+    ],
   },
   formatDetection: {
     email: false,
@@ -40,7 +43,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: "#1e2433",
   colorScheme: "dark light",
 };
 

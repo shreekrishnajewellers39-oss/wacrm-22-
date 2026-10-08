@@ -36,13 +36,15 @@ import { useTranslations } from "next-intl";
 // agent+. The two CTAs gate on different `useCan` capabilities,
 // not on different copy.
 
-// Spec-defined seed — name and color per the product spec.
+// Jewellery specific default stages — inquiry to delivery
 const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "New Inquiry", color: "#3b82f6", position: 0 }, // blue
+  { name: "Designs Shared", color: "#8b5cf6", position: 1 }, // purple
+  { name: "Quotation & Gold Rate", color: "#f59e0b", position: 2 }, // amber / gold
+  { name: "Store Visit / Trial", color: "#f97316", position: 3 }, // orange
+  { name: "Order Booked (Advance)", color: "#06b6d4", position: 4 }, // cyan
+  { name: "Ready for Delivery", color: "#10b981", position: 5 }, // emerald
+  { name: "Delivered & Billed", color: "#22c55e", position: 6 }, // green
 ];
 
 export default function PipelinesPage() {
@@ -120,7 +122,7 @@ export default function PipelinesPage() {
 
     const { data: pipeline, error } = await supabase
       .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name: "Sales Pipeline" })
+      .insert({ user_id: user.id, account_id: accountId, name: "Jewellery Orders & Inquiries" })
       .select()
       .single();
 

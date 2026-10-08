@@ -175,9 +175,9 @@ export function explainMetaError(
   if (code === 10 || (code !== null && code >= 200 && code <= 299)) {
     return build(
       `The access token is not allowed to perform this action (${STEP_LABEL[step]}). ` +
-        'Its System User needs the whatsapp_business_management and whatsapp_business_messaging ' +
-        'permissions AND must be assigned to this WhatsApp Business Account ' +
-        '(Business Settings → System Users → Add assets → WhatsApp accounts). Then generate a new token.',
+      'Its System User needs the whatsapp_business_management and whatsapp_business_messaging ' +
+      'permissions AND must be assigned to this WhatsApp Business Account ' +
+      '(Business Settings → System Users → Add assets → WhatsApp accounts). Then generate a new token.',
       'access_token',
       'user',
     )
@@ -186,8 +186,8 @@ export function explainMetaError(
   if (code === 131005) {
     return build(
       `Meta denied access while ${STEP_LABEL[step]}: the business that owns the token cannot manage ` +
-        `${withId(target.noun, target.id)}. Assign the System User to this WhatsApp Business Account ` +
-        'in Business Settings and make sure the token has whatsapp_business_management.',
+      `${withId(target.noun, target.id)}. Assign the System User to this WhatsApp Business Account ` +
+      'in Business Settings and make sure the token has whatsapp_business_management.',
       'access_token',
       'user',
     )
@@ -204,8 +204,8 @@ export function explainMetaError(
   if (looksLikeMissingObject) {
     return build(
       `Meta cannot find ${withId(target.noun, target.id)}, or the business that owns the access token ` +
-        `does not own it. Copy the ${target.noun} exactly from Meta → WhatsApp → API Setup and check the ` +
-        'token was generated inside the same Business portfolio.',
+      `does not own it. Copy the ${target.noun} exactly from Meta → WhatsApp → API Setup and check the ` +
+      'token was generated inside the same Business portfolio.',
       target.field,
       'user',
     )
@@ -215,14 +215,14 @@ export function explainMetaError(
     if (step === 'register' && /pin/i.test(err.message)) {
       return build(
         `Meta rejected the two-step verification PIN: ${err.message}. Enter the 6-digit PIN set in ` +
-          'WhatsApp Manager → Phone numbers → Two-step verification.',
+        'WhatsApp Manager → Phone numbers → Two-step verification.',
         'pin',
         'user',
       )
     }
     return build(
       `Meta rejected a parameter while ${STEP_LABEL[step]}: ${err.message}. Check that the ` +
-        `${target.noun} is copied exactly (digits only, no spaces).`,
+      `${target.noun} is copied exactly (digits only, no spaces).`,
       target.field,
       'user',
     )
@@ -232,7 +232,7 @@ export function explainMetaError(
   if (code === 133010) {
     return build(
       'This phone number is not registered with the WhatsApp Cloud API yet. Enter the two-step ' +
-        'verification PIN below and save again so wacrm can register it (POST /register).',
+      'verification PIN below and save again so SKJCRM can register it (POST /register).',
       'pin',
       'user',
     )
@@ -240,7 +240,7 @@ export function explainMetaError(
   if (code === 133005 || code === 136025) {
     return build(
       'The two-step verification PIN is wrong. Use the 6-digit PIN set in WhatsApp Manager → ' +
-        'Phone numbers → Two-step verification (or reset it there), then save again.',
+      'Phone numbers → Two-step verification (or reset it there), then save again.',
       'pin',
       'user',
     )
@@ -248,7 +248,7 @@ export function explainMetaError(
   if (code === 133008 || code === 133009) {
     return build(
       'Meta has temporarily locked PIN attempts for this number after too many wrong guesses. ' +
-        'Wait a while before saving again with the correct PIN.',
+      'Wait a while before saving again with the correct PIN.',
       'pin',
       'meta',
     )
@@ -256,7 +256,7 @@ export function explainMetaError(
   if (code === 133006) {
     return build(
       'Meta requires this phone number to be re-verified. Open WhatsApp Manager → Phone numbers, ' +
-        'complete verification (SMS or voice), then save again.',
+      'complete verification (SMS or voice), then save again.',
       'meta_account',
       'meta',
     )
@@ -264,7 +264,7 @@ export function explainMetaError(
   if (code === 133015) {
     return build(
       'This phone number was recently deleted from WhatsApp and cannot be registered yet. ' +
-        'Meta blocks re-registration for a period after deletion — try again later.',
+      'Meta blocks re-registration for a period after deletion — try again later.',
       'meta_account',
       'meta',
     )
@@ -273,9 +273,9 @@ export function explainMetaError(
   // --- Account state ------------------------------------------------------
   if (code === 131031) {
     return build(
-      'Meta has restricted or locked this WhatsApp Business Account, so nothing in wacrm can ' +
-        'connect it. Open Meta Business Manager → Account quality (or WhatsApp Manager → Overview) ' +
-        'to see the restriction and appeal it.',
+      'Meta has restricted or locked this WhatsApp Business Account, so nothing in SKJCRM can ' +
+      'connect it. Open Meta Business Manager → Account quality (or WhatsApp Manager → Overview) ' +
+      'to see the restriction and appeal it.',
       'meta_account',
       'meta',
     )
@@ -283,7 +283,7 @@ export function explainMetaError(
   if (code === 368) {
     return build(
       'Meta has temporarily blocked this account for a policy violation. Review the notice in ' +
-        'Meta Business Manager → Account quality; the block lifts on its own or after an appeal.',
+      'Meta Business Manager → Account quality; the block lifts on its own or after an appeal.',
       'meta_account',
       'meta',
     )
@@ -293,7 +293,7 @@ export function explainMetaError(
   if (RATE_LIMIT_CODES.has(code ?? -1)) {
     return build(
       'Meta is rate-limiting this app or WhatsApp Business Account right now. Nothing needs ' +
-        'changing — wait a few minutes and try again.',
+      'changing — wait a few minutes and try again.',
       null,
       'meta',
     )
@@ -301,7 +301,7 @@ export function explainMetaError(
   if (TEMPORARY_CODES.has(code ?? -1)) {
     return build(
       `Meta returned a temporary error while ${STEP_LABEL[step]} (code ${code}). Retry in a minute; ` +
-        'if it keeps happening, check metastatus.com and quote the trace id to Meta support.',
+      'if it keeps happening, check metastatus.com and quote the trace id to Meta support.',
       null,
       'meta',
     )

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
-const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
+const CONTACT_PANEL_STORAGE_KEY = "SKJCRM:inbox:contact-panel-open";
 
 // `useSearchParams` (the `?c=<id>` deep link below) requires a Suspense
 // boundary or the production build bails to CSR and errors out. Thin
@@ -244,14 +244,14 @@ function InboxPageInner() {
             prev.map((c) =>
               c.id === newMsg.conversation_id
                 ? {
-                    ...c,
-                    last_message_text: newMsg.content_text ?? "",
-                    last_message_at: newMsg.created_at,
-                    unread_count:
-                      activeConversation?.id === newMsg.conversation_id
-                        ? 0
-                        : c.unread_count + 1,
-                  }
+                  ...c,
+                  last_message_text: newMsg.content_text ?? "",
+                  last_message_at: newMsg.created_at,
+                  unread_count:
+                    activeConversation?.id === newMsg.conversation_id
+                      ? 0
+                      : c.unread_count + 1,
+                }
                 : c,
             ),
           );
@@ -311,10 +311,10 @@ function InboxPageInner() {
             prev.map((c) =>
               c.id === conv.id
                 ? {
-                    ...c,
-                    ...conv,
-                    unread_count: isActive ? 0 : conv.unread_count,
-                  }
+                  ...c,
+                  ...conv,
+                  unread_count: isActive ? 0 : conv.unread_count,
+                }
                 : c,
             ),
           );

@@ -1,8 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, MessageSquare, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { Loader2, MessageSquare, Pencil, Plus, Sparkles, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
+
+export const JEWELLERY_STARTER_QUICK_REPLIES = [
+  {
+    title: "Today's Gold Rate (22K / 24K)",
+    content_text:
+      "Namaste! Shree Krishna Jewellers me aaj ka gold rate:\n✨ 22K (916 BIS Hallmark): ₹.../gm\n✨ 24K Pure Gold: ₹.../gm\n\nMaking charges design ke hisab se rahenge. Aapko ring, necklace, chain ya bangle me se kya dekhna hai?",
+  },
+  {
+    title: "Showroom Location & Timings",
+    content_text:
+      "Namaste! Shree Krishna Jewellers showroom timings:\n🕒 10:30 AM se 8:30 PM (Roz khula hai)\n📍 Showroom Address: [Yahan apna showroom address likhein]\n🗺️ Google Map: [Map link yahan paste karein]\n\nAapka swagat hai!",
+  },
+  {
+    title: "BIS Hallmarking & Purity Guarantee",
+    content_text:
+      "Shree Krishna Jewellers par aapko milta hai:\n✅ 100% BIS 916 Hallmarked Gold\n💎 IGI / SGL Certified Real Diamonds\n🔄 Old Gold Exchange par 100% Value Guarantee\n📄 Pucca GST Bill & Lifelong Maintenance Support.",
+  },
+  {
+    title: "Custom Order Ready for Pick-up",
+    content_text:
+      "Namaste ji! Aapka custom jewellery order Shree Krishna Jewellers par bankar ready ho gaya hai. ✨\n\nAap kisi bhi samay showroom aakar apna order pick kar sakte hain. Dhanyawaad!",
+  },
+  {
+    title: "Anniversary & Birthday Special Offer",
+    content_text:
+      "Shree Krishna Jewellers parivaar ki taraf se aapko bohot bohot shubhkaamnaayein! 🎉\n\nAapke is khaas din ko aur yaadgaar banane ke liye, aapke agle purchase par Making Charges par Special Discount offer uplabdh hai. Showroom zaroor visit karein!",
+  },
+];
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,16 +151,56 @@ export function QuickRepliesManager() {
     [load],
   );
 
+  const [seeding, setSeeding] = useState(false);
+
+  const loadJewelleryTemplates = async () => {
+    setSeeding(true);
+    try {
+      for (const tpl of JEWELLERY_STARTER_QUICK_REPLIES) {
+        await fetch("/api/quick-replies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: tpl.title,
+            kind: "text",
+            content_text: tpl.content_text,
+          }),
+        });
+      }
+      toast.success("Shree Krishna Jewellers quick replies loaded!");
+      await load();
+    } catch {
+      toast.error("Failed to load templates");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <div>
       <SettingsPanelHead
         title="Quick replies"
         description="Reusable snippets — plain text or a saved interactive message — that agents can insert from the inbox composer."
         action={
-          <Button onClick={openCreate}>
-            <Plus className="mr-1 h-4 w-4" />
-            New quick reply
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={loadJewelleryTemplates}
+              disabled={seeding}
+              className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+            >
+              {seeding ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1 h-4 w-4" />
+              )}
+              Load Jewellery Templates
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-1 h-4 w-4" />
+              New quick reply
+            </Button>
+          </div>
         }
       />
 
@@ -141,9 +209,24 @@ export function QuickRepliesManager() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : items.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
-          No quick replies yet. Create one to reuse it across conversations.
-        </p>
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center">
+          <p className="mb-4 text-sm text-muted-foreground">
+            No quick replies yet. You can create one manually or load pre-written templates tailored for Shree Krishna Jewellers.
+          </p>
+          <Button
+            onClick={loadJewelleryTemplates}
+            disabled={seeding}
+            variant="secondary"
+            className="border border-amber-500/40 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20"
+          >
+            {seeding ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1 h-4 w-4" />
+            )}
+            Load Jewellery Templates (Gold Rate, Location, Hallmark, Pick-up)
+          </Button>
+        </div>
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((qr) => (

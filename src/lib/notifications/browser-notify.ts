@@ -12,14 +12,14 @@ import type { ContentType, SenderType } from "@/types";
  */
 
 /** localStorage key for the device-scoped opt-in. */
-export const BROWSER_NOTIFY_STORAGE_KEY = "wacrm:browser-notifications";
+export const BROWSER_NOTIFY_STORAGE_KEY = "SKJCRM:browser-notifications";
 
 /**
  * Same-tab change signal. `storage` events only fire in *other* tabs,
  * so the settings toggle and the listener hook (both in this tab) sync
  * through this window event instead.
  */
-export const BROWSER_NOTIFY_CHANGE_EVENT = "wacrm:browser-notifications-change";
+export const BROWSER_NOTIFY_CHANGE_EVENT = "SKJCRM:browser-notifications-change";
 
 /** A duplicate INSERT for the same message id inside this window is ignored. */
 export const DEDUPE_WINDOW_MS = 30_000;
@@ -233,7 +233,7 @@ export function writeBrowserNotifyPref(enabled: boolean): void {
  * tabs (`storage`). Shaped for `useSyncExternalStore`.
  */
 export function subscribeBrowserNotifyPref(onChange: () => void): () => void {
-  if (typeof window === "undefined") return () => {};
+  if (typeof window === "undefined") return () => { };
   const onStorage = (e: StorageEvent) => {
     if (e.key === null || e.key === BROWSER_NOTIFY_STORAGE_KEY) onChange();
   };

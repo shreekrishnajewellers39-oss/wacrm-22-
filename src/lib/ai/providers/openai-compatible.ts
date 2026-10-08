@@ -79,7 +79,7 @@ export function generateDeepSeek(args: ProviderArgs): Promise<ProviderResult> {
 
 export function generateOpenRouter(args: ProviderArgs): Promise<ProviderResult> {
   return generateOpenAiCompatible('https://openrouter.ai/api/v1/chat/completions', 'OpenRouter', args, {
-    'HTTP-Referer': 'https://wacrm.app',
-    'X-Title': 'wacrm',
+    'HTTP-Referer': 'https://SKJCRM.app',
+    'X-Title': 'SKJCRM',
   })
 }

@@ -1,8 +1,8 @@
 // ============================================================
 // Broadcast tool — the highest-risk action.
 //
-// Registered only when BOTH WACRM_ENABLE_WRITES and
-// WACRM_ENABLE_BROADCASTS are set. A single call can message up to
+// Registered only when BOTH SKJCRM_ENABLE_WRITES and
+// SKJCRM_ENABLE_BROADCASTS are set. A single call can message up to
 // 1000 people, so on top of the env gate the tool requires an
 // explicit `confirm: true` argument — the model must consciously opt
 // in, and a client that echoes tool args gives the user a last look.
@@ -11,10 +11,10 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { WacrmClient } from '../client.js';
+import type { SKJCRMClient } from '../client.js';
 import { errorResult, handle, jsonResult } from './shared.js';
 
-export function registerBroadcastTools(server: McpServer, client: WacrmClient): void {
+export function registerBroadcastTools(server: McpServer, client: SKJCRMClient): void {
   server.registerTool(
     'send_broadcast',
     {
@@ -53,8 +53,8 @@ export function registerBroadcastTools(server: McpServer, client: WacrmClient): 
       if (confirm !== true) {
         return errorResult(
           'Refusing to send: confirm must be true. This launches a mass broadcast to ' +
-            `${body.recipients.length} recipient(s). Confirm the recipient list and template ` +
-            'with the user, then call again with confirm=true.',
+          `${body.recipients.length} recipient(s). Confirm the recipient list and template ` +
+          'with the user, then call again with confirm=true.',
         );
       }
       return jsonResult(await client.sendBroadcast(body));
