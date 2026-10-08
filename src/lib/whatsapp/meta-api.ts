@@ -1227,3 +1227,40 @@ export async function downloadMedia(
   const buffer = Buffer.from(await response.arrayBuffer())
   return { buffer, contentType }
 }
+
+export interface MarkMessageAsReadArgs {
+  phoneNumberId: string
+  accessToken: string
+  messageId: string
+}
+
+/**
+ * Mark an inbound WhatsApp message as read.
+ * This triggers the double blue ticks (✓✓) on the customer's WhatsApp.
+ */
+export async function markMessageAsRead(
+  args: MarkMessageAsReadArgs
+): Promise<{ success: boolean }> {
+  const { phoneNumberId, accessToken, messageId } = args
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await readMetaError(response, `Mark as read failed: ${response.status}`)
+    console.warn(`[meta-api] markMessageAsRead failed for ${messageId}:`, err.message)
+    return { success: false }
+  }
+
+  return { success: true }
+}

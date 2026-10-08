@@ -36,14 +36,6 @@ interface ConversationListProps {
   resyncToken?: number;
 }
 
-const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
-  pending: "bg-amber-500",
-  closed: "bg-muted-foreground",
-};
-
-
-
 type InboxFilter = ConversationStatus | "all" | "unread";
 
 export function ConversationList({
@@ -485,17 +477,25 @@ function ConversationItem({
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span
+                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground"
+                title={`${conversation.unread_count} unread`}
+              >
                 {conversation.unread_count}
               </span>
             )}
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                STATUS_COLORS[conversation.status]
-              )}
-              title={conversation.status}
-            />
+            {conversation.status === "pending" && (
+              <span
+                className="h-2 w-2 rounded-full bg-amber-500"
+                title="Pending"
+              />
+            )}
+            {conversation.status === "closed" && (
+              <span
+                className="h-2 w-2 rounded-full bg-muted-foreground/40"
+                title="Closed"
+              />
+            )}
           </div>
         </div>
       </div>

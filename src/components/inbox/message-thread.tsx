@@ -454,6 +454,14 @@ export function MessageThread({
       .then(({ error }) => {
         if (error) console.error("Failed to reset unread_count:", error);
       });
+
+    fetch("/api/whatsapp/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversation_id: conversationId }),
+    }).catch((err) => {
+      console.warn("Failed to dispatch WhatsApp read receipt:", err);
+    });
   }, [conversationId, hasUnread]);
 
   // Auto-scroll to bottom on new messages
