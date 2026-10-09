@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
+    keywordAutomations: [] as Record<string, unknown>[],
     claim: true as boolean,
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
@@ -34,13 +35,14 @@ vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       if (table === 'automations') {
-        // .select().eq().eq().in().limit() → active auto-responders
-        const chain = {
+        const chain: Record<string, unknown> = {
           select: () => chain,
           eq: () => chain,
           in: () => chain,
           limit: () =>
             Promise.resolve({ data: h.state.autoResponders, error: null }),
+          then: (resolve: (val: unknown) => unknown, reject: (err: unknown) => unknown) =>
+            Promise.resolve({ data: h.state.keywordAutomations, error: null }).then(resolve, reject),
         }
         return chain
       }
@@ -97,6 +99,7 @@ beforeEach(() => {
     ai_reply_count: 0,
   }
   h.state.autoResponders = []
+  h.state.keywordAutomations = []
   h.state.claim = true
   h.state.updatePayload = null
   h.state.rpcCalls = []
@@ -140,6 +143,32 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     expect(h.generateReply).not.toHaveBeenCalled()
     expect(h.engineSendText).not.toHaveBeenCalled()
     expect(h.sendTypingIndicator).not.toHaveBeenCalled()
+  })
+
+  it('stands down when an incoming message matches an active keyword automation', async () => {
+    h.state.keywordAutomations = [
+      {
+        id: 'auto-kw-1',
+        trigger_type: 'keyword_match',
+        trigger_config: { keywords: ['gold rate'], match_type: 'contains' },
+      },
+    ]
+    await dispatchInboundToAiReply({ ...ARGS, inboundText: 'what is today gold rate' })
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('proceeds with AI auto-reply when an incoming message does not match keyword automations', async () => {
+    h.state.keywordAutomations = [
+      {
+        id: 'auto-kw-1',
+        trigger_type: 'keyword_match',
+        trigger_config: { keywords: ['done'], match_type: 'exact' },
+      },
+    ]
+    await dispatchInboundToAiReply({ ...ARGS, inboundText: '22K' })
+    expect(h.generateReply).toHaveBeenCalled()
+    expect(h.engineSendText).toHaveBeenCalled()
   })
 
   it('does not send when the atomic slot claim loses the race', async () => {

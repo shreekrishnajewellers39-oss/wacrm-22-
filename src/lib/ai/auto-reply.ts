@@ -1,3 +1,5 @@
+import type { Automation } from '@/types'
+import { triggerMatches } from '@/lib/automations/engine'
 import { supabaseAdmin } from './admin-client'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
@@ -26,6 +28,8 @@ interface DispatchArgs {
    *  a typing indicator (which also marks it read) is shown while the
    *  reply is generated. Optional so older callers keep working. */
   inboundMessageId?: string
+  /** Inbound customer message text, used to evaluate keyword triggers. */
+  inboundText?: string
 }
 
 /**
@@ -56,6 +60,7 @@ export async function dispatchInboundToAiReply(
     contactId,
     configOwnerUserId,
     inboundMessageId,
+    inboundText,
   } = args
 
   try {
@@ -65,21 +70,18 @@ export async function dispatchInboundToAiReply(
     if (!config || !config.autoReplyEnabled) return
 
     // Deterministic, user-configured responders win over the LLM — the
-    // caller already excludes messages a Flow consumed. Message-level
-    // automations (`new_message_received` / `keyword_match`) are
-    // dispatched independently for this same inbound and may send their
-    // own reply, so if the account has any active one we stand down to
-    // avoid double-texting the customer. (Relationship triggers like
-    // `first_inbound_message` don't count — they're not per-message
-    // auto-responders.)
-    const { data: autoResponders } = await db
+    // caller already excludes messages a Flow consumed.
+    // 1. `new_message_received` automations fire unconditionally for every
+    // inbound message. If the account has an active one, stand down to
+    // avoid double-texting the customer.
+    const { data: globalResponders } = await db
       .from('automations')
       .select('id')
       .eq('account_id', accountId)
       .eq('is_active', true)
-      .in('trigger_type', ['new_message_received', 'keyword_match'])
+      .eq('trigger_type', 'new_message_received')
       .limit(1)
-    if (autoResponders && autoResponders.length > 0) return
+    if (globalResponders && globalResponders.length > 0) return
 
     const { data: conv, error: convErr } = await db
       .from('conversations')
@@ -95,6 +97,28 @@ export async function dispatchInboundToAiReply(
 
     const messages = await buildConversationContext(db, conversationId)
     if (messages.length === 0) return
+
+    // 2. `keyword_match` automations only fire when customer text matches
+    // configured keywords. If any active keyword automation matches this
+    // message, stand down so that automation handles it.
+    const incomingText = (inboundText ?? latestUserMessage(messages)).trim()
+    if (incomingText) {
+      const { data: keywordAutomations } = await db
+        .from('automations')
+        .select('id, trigger_type, trigger_config')
+        .eq('account_id', accountId)
+        .eq('is_active', true)
+        .eq('trigger_type', 'keyword_match')
+
+      if (
+        keywordAutomations &&
+        keywordAutomations.some((auto) =>
+          triggerMatches(auto as Automation, { message_text: incomingText }),
+        )
+      ) {
+        return
+      }
+    }
 
     // Account-wide throttle on the shared BYO key. The per-conversation
     // cap bounds one thread; this bounds a burst across many threads (a

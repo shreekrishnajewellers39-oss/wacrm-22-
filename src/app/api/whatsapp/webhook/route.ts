@@ -970,6 +970,7 @@ async function processMessage(
       // Lets the bot show "typing…" (and mark the message read) while
       // the reply is generated.
       inboundMessageId: message.id,
+      inboundText,
     })
   }
 
