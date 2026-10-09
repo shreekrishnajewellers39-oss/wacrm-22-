@@ -56,7 +56,7 @@ function normalizeForGemini(
  */
 export async function generateGemini(args: ProviderArgs): Promise<ProviderResult> {
   const { apiKey, model, systemPrompt, messages, timeoutMs } = args
-  const cleanModel = (model || 'gemini-2.0-flash').trim().replace(/^models\//, '')
+  const cleanModel = (model || 'gemini-3.8-flash').trim().replace(/^models\//, '')
   const url = `${GEMINI_BASE_URL}/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
 
   const payload: Record<string, unknown> = {
