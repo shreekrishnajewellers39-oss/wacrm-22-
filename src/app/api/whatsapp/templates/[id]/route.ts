@@ -4,6 +4,7 @@ import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   deleteMessageTemplate,
   editMessageTemplate,
+  MetaApiError,
 } from '@/lib/whatsapp/meta-api'
 import {
   validateTemplatePayload,
@@ -299,8 +300,27 @@ export async function DELETE(
           metaTemplateId: existing.meta_template_id,
         })
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta delete failed.'
-        return NextResponse.json({ error: message }, { status: 502 })
+        const isMetaError = e instanceof MetaApiError
+        // Code 100 ("Invalid parameter") is returned by Meta when the template
+        // or hsm_id does not exist under this WABA (e.g. portfolio recreated,
+        // or already deleted on Meta). Treat 404 and code 100 as "already gone from Meta"
+        // so the user can clean up the orphaned local row.
+        const isNotFoundOrInvalid =
+          (isMetaError && (e.httpStatus === 404 || e.code === 100)) ||
+          (e instanceof Error &&
+            (e.message.includes('100') ||
+              e.message.toLowerCase().includes('invalid parameter') ||
+              e.message.toLowerCase().includes('not found') ||
+              e.message.toLowerCase().includes('does not exist')))
+
+        if (isNotFoundOrInvalid) {
+          console.warn(
+            `[template/delete] Template "${existing.name}" not found on Meta WABA ${config.waba_id} (${e instanceof Error ? e.message : e}). Cleaning up local row.`,
+          )
+        } else {
+          const message = e instanceof Error ? e.message : 'Meta delete failed.'
+          return NextResponse.json({ error: message }, { status: 502 })
+        }
       }
     }
 

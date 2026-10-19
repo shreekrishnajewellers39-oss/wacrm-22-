@@ -773,10 +773,21 @@ export async function deleteMessageTemplate(
   const params = new URLSearchParams({ name })
   if (metaTemplateId) params.set('hsm_id', metaTemplateId)
   const url = `${META_API_BASE}/${wabaId}/message_templates?${params.toString()}`
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
+  // If hsm_id was passed and Meta rejected with 400 (Invalid parameter),
+  // try once without hsm_id in case the template can be deleted by name alone.
+  if (response.status === 400 && metaTemplateId) {
+    const fallbackUrl = `${META_API_BASE}/${wabaId}/message_templates?name=${encodeURIComponent(name)}`
+    const retryRes = await fetch(fallbackUrl, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (retryRes.ok || retryRes.status === 404) return
+    response = retryRes
+  }
   // Treat a 404 as a no-op — the template is already gone on Meta's
   // side, and we still want the local row removed.
   if (response.status === 404) return
