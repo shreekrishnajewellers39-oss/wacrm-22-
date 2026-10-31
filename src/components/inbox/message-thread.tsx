@@ -21,6 +21,7 @@ import type {
 import {
   MessageSquare,
   ChevronDown,
+  ChevronUp,
   UserPlus,
   Check,
   Clock,
@@ -33,11 +34,15 @@ import {
   MoreVertical,
   X,
   Loader2,
+  Search,
+  Star,
+  StarOff,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -204,10 +209,110 @@ export function MessageThread({
   const [confirmDeleteConversation, setConfirmDeleteConversation] = useState(false);
   const [deletingMessages, setDeletingMessages] = useState(false);
 
-  // Clear selection if conversation changes
+  // Starred messages state
+  const [starredMessageIds, setStarredMessageIds] = useState<Set<string>>(new Set());
+  const [starredModalOpen, setStarredModalOpen] = useState(false);
+
+  // In-Chat Search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+
+  // Load starred message IDs from localStorage
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem("SKJCRM:inbox:starred-messages");
+      if (s) setStarredMessageIds(new Set(JSON.parse(s)));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleToggleStar = useCallback((msgId: string) => {
+    setStarredMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+        toast.success("Message unstarred");
+      } else {
+        next.add(msgId);
+        toast.success("Message starred ⭐");
+      }
+      try {
+        localStorage.setItem("SKJCRM:inbox:starred-messages", JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  // Filter starred messages for the current active conversation
+  const conversationStarredMessages = useMemo(() => {
+    return messages.filter((m) => starredMessageIds.has(m.id));
+  }, [messages, starredMessageIds]);
+
+  // In-Chat Search matches
+  const searchMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return messages.filter((m) => {
+      const text = m.content_text?.toLowerCase() || "";
+      const template = m.template_name?.toLowerCase() || "";
+      return text.includes(q) || template.includes(q);
+    });
+  }, [messages, searchQuery]);
+
+  // Reset active match on query change
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [searchQuery]);
+
+  const scrollToMessage = useCallback((msgId: string) => {
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, []);
+
+  const handleNextMatch = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    const nextIdx = (activeMatchIndex + 1) % searchMatches.length;
+    setActiveMatchIndex(nextIdx);
+    scrollToMessage(searchMatches[nextIdx].id);
+  }, [activeMatchIndex, searchMatches, scrollToMessage]);
+
+  const handlePrevMatch = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    const prevIdx = (activeMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+    setActiveMatchIndex(prevIdx);
+    scrollToMessage(searchMatches[prevIdx].id);
+  }, [activeMatchIndex, searchMatches, scrollToMessage]);
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handlePrevMatch();
+        } else {
+          handleNextMatch();
+        }
+      } else if (e.key === "Escape") {
+        setSearchOpen(false);
+        setSearchQuery("");
+      }
+    },
+    [handleNextMatch, handlePrevMatch]
+  );
+
+  // Clear selection and search if conversation changes
   useEffect(() => {
     setSelectionMode(false);
     setSelectedMessageIds(new Set());
+    setSearchOpen(false);
+    setSearchQuery("");
+    setActiveMatchIndex(0);
   }, [conversation?.id]);
 
   const handleToggleSelectMessage = useCallback((msgId: string) => {
@@ -1216,6 +1321,23 @@ export function MessageThread({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* In-Chat Search toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              setSearchOpen((prev) => !prev);
+              if (searchOpen) setSearchQuery("");
+            }}
+            aria-label="Search in chat"
+            title="Search in chat"
+            className={cn(
+              "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              searchOpen && "bg-muted text-primary"
+            )}
+          >
+            <Search className="h-3.5 w-3.5" />
+          </button>
+
           {/* Select Messages toggle */}
           <button
             type="button"
@@ -1244,6 +1366,21 @@ export function MessageThread({
             <DropdownMenuContent align="end" className="border-border bg-popover">
               <DropdownMenuItem
                 onClick={() => {
+                  setSearchOpen(true);
+                }}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Search in Chat
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setStarredModalOpen(true)}
+              >
+                <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+                Starred Messages {conversationStarredMessages.length > 0 && `(${conversationStarredMessages.length})`}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem
+                onClick={() => {
                   setSelectionMode((prev) => !prev);
                   setSelectedMessageIds(new Set());
                 }}
@@ -1263,6 +1400,64 @@ export function MessageThread({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* In-Chat Search Bar (shown when searchOpen is true) */}
+      {searchOpen && (
+        <div className="flex items-center justify-between gap-2 border-b border-border bg-card/95 px-4 py-2 text-sm backdrop-blur-sm sticky top-0 z-20 shadow-xs">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search in this chat..."
+              className="h-7.5 border-border bg-muted pl-8 text-xs text-foreground placeholder-muted-foreground focus:border-primary/50"
+            />
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {searchQuery.trim() && (
+              <span className="text-[11px] font-medium mr-1 text-foreground">
+                {searchMatches.length > 0
+                  ? `${activeMatchIndex + 1} of ${searchMatches.length}`
+                  : "No matches"}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={searchMatches.length === 0}
+              onClick={handlePrevMatch}
+              className="h-7 w-7 p-0"
+              title="Previous match (Shift+Enter)"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={searchMatches.length === 0}
+              onClick={handleNextMatch}
+              className="h-7 w-7 p-0"
+              title="Next match (Enter)"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery("");
+              }}
+              className="h-7 w-7 p-0 hover:text-foreground"
+              title="Close search (Esc)"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Selection Action Bar (shown when selectionMode is true) */}
       {selectionMode && (
@@ -1362,28 +1557,33 @@ export function MessageThread({
                       void postReaction(msg.id, next);
                     };
                     return (
-                      <MessageActions
-                        key={msg.id}
-                        message={msg}
-                        selectable={selectionMode}
-                        selected={selectedMessageIds.has(msg.id)}
-                        onToggleSelect={() => handleToggleSelectMessage(msg.id)}
-                        onReply={() => handleStartReply(msg)}
-                        onReact={(emoji) => {
-                          if (emoji) void postReaction(msg.id, emoji);
-                        }}
-                        onForward={() => setForwardMessage(msg)}
-                        onDelete={() => setSingleDeleteTarget(msg)}
-                      >
-                        <MessageBubble
+                      <div key={msg.id} id={`msg-${msg.id}`}>
+                        <MessageActions
                           message={msg}
-                          reply={reply}
-                          reactions={msgReactions}
-                          currentUserId={user?.id}
-                          onToggleReaction={handlePillToggle}
-                          onOpenMedia={handleMediaChange}
-                        />
-                      </MessageActions>
+                          selectable={selectionMode}
+                          selected={selectedMessageIds.has(msg.id)}
+                          onToggleSelect={() => handleToggleSelectMessage(msg.id)}
+                          onReply={() => handleStartReply(msg)}
+                          onReact={(emoji) => {
+                            if (emoji) void postReaction(msg.id, emoji);
+                          }}
+                          onForward={() => setForwardMessage(msg)}
+                          onDelete={() => setSingleDeleteTarget(msg)}
+                          isStarred={starredMessageIds.has(msg.id)}
+                          onToggleStar={() => handleToggleStar(msg.id)}
+                        >
+                          <MessageBubble
+                            message={msg}
+                            reply={reply}
+                            reactions={msgReactions}
+                            currentUserId={user?.id}
+                            onToggleReaction={handlePillToggle}
+                            onOpenMedia={handleMediaChange}
+                            isStarred={starredMessageIds.has(msg.id)}
+                            searchQuery={searchOpen ? searchQuery : undefined}
+                          />
+                        </MessageActions>
+                      </div>
                     );
                   })}
                 </div>
@@ -1544,6 +1744,72 @@ export function MessageThread({
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {deletingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Conversation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Starred Messages Dialog */}
+      <Dialog open={starredModalOpen} onOpenChange={setStarredModalOpen}>
+        <DialogContent className="max-w-md bg-popover border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-foreground">
+              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+              Starred Messages ({conversationStarredMessages.length})
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Messages you have starred in this conversation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto space-y-2 py-2">
+            {conversationStarredMessages.length === 0 ? (
+              <div className="text-center py-8 text-xs text-muted-foreground">
+                No starred messages yet. Hover over any message and click ⭐ to star it.
+              </div>
+            ) : (
+              conversationStarredMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  onClick={() => {
+                    setStarredModalOpen(false);
+                    scrollToMessage(msg.id);
+                  }}
+                  className="flex items-start justify-between gap-2 p-2.5 rounded-lg border border-border bg-muted/40 hover:bg-muted cursor-pointer transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground mb-1">
+                      <span className="font-semibold text-foreground">
+                        {msg.sender_type === "agent" || msg.sender_type === "bot" ? "You" : displayName}
+                      </span>
+                      <span>•</span>
+                      <span>{format(new Date(msg.created_at), "MMM d, HH:mm")}</span>
+                    </div>
+                    <p className="text-xs text-foreground line-clamp-3">
+                      {msg.content_text || `[${msg.content_type}]`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleStar(msg.id);
+                    }}
+                    title="Unstar"
+                    className="text-amber-400 hover:text-muted-foreground p-1 shrink-0"
+                  >
+                    <Star className="h-4 w-4 fill-amber-400" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStarredModalOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

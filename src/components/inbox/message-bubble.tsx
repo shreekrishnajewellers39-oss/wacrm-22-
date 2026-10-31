@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   CornerDownLeft,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -32,12 +33,46 @@ interface MessageBubbleProps {
   reactions?: MessageReaction[];
   currentUserId?: string;
   onToggleReaction?: (emoji: string) => void;
+  isStarred?: boolean;
+  searchQuery?: string;
   /**
    * Opens the thread's media viewer on this message. Only images and videos
    * call it; omitted when the parent renders no viewer, in which case media
    * stays inline and non-clickable.
    */
   onOpenMedia?: (messageId: string) => void;
+}
+
+function renderHighlightedText(text: string | null | undefined, query?: string) {
+  if (!text) return null;
+  const q = query?.trim().toLowerCase();
+  if (!q) return text;
+
+  const parts = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining) {
+    const idx = remaining.toLowerCase().indexOf(q);
+    if (idx === -1) {
+      parts.push(remaining);
+      break;
+    }
+    if (idx > 0) {
+      parts.push(remaining.slice(0, idx));
+    }
+    parts.push(
+      <mark
+        key={key++}
+        className="rounded-xs bg-amber-400/40 text-inherit font-semibold px-0.5"
+      >
+        {remaining.slice(idx, idx + q.length)}
+      </mark>
+    );
+    remaining = remaining.slice(idx + q.length);
+  }
+
+  return parts;
 }
 
 /**
@@ -85,12 +120,14 @@ function MessageContent({
   t,
   isAgent,
   onOpenMedia,
+  searchQuery,
 }: {
   message: Message;
   t: ReturnType<typeof useTranslations>;
   /** Outbound bubbles sit on the primary fill — badges must invert. */
   isAgent: boolean;
   onOpenMedia?: (messageId: string) => void;
+  searchQuery?: string;
 }) {
   // Passed to the media bubbles as a no-arg callback; `undefined` when the
   // parent wired up no viewer, which is what makes them non-clickable.
@@ -100,7 +137,7 @@ function MessageContent({
     case "text":
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
+          {renderHighlightedText(message.content_text, searchQuery)}
         </p>
       );
 
@@ -114,7 +151,7 @@ function MessageContent({
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              {renderHighlightedText(message.content_text, searchQuery)}
             </p>
           )}
         </div>
@@ -130,7 +167,7 @@ function MessageContent({
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
+              {renderHighlightedText(message.content_text, searchQuery)}
             </p>
           )}
         </div>
@@ -245,6 +282,8 @@ export function MessageBubble({
   currentUserId,
   onToggleReaction,
   onOpenMedia,
+  isStarred = false,
+  searchQuery,
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
@@ -281,6 +320,7 @@ export function MessageBubble({
           t={t}
           isAgent={isAgent}
           onOpenMedia={onOpenMedia}
+          searchQuery={searchQuery}
         />
         <div
           className={cn(
@@ -288,6 +328,16 @@ export function MessageBubble({
             isAgent ? "justify-end" : "justify-start",
           )}
         >
+          {isStarred && (
+            <span title="Starred message" className="inline-flex shrink-0">
+              <Star
+                className={cn(
+                  "h-2.5 w-2.5 fill-amber-400 text-amber-400",
+                  isAgent && "fill-amber-300 text-amber-300"
+                )}
+              />
+            </span>
+          )}
           {/* AI badge — only on replies the auto-reply bot generated
               (always outbound, so it sits on the primary fill). Lets
               agents tell an AI reply from their own / a Flow's at a

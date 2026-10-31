@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import {
   Download,
   FileText,
@@ -231,10 +231,39 @@ export function MediaAudioBubble({
   t: Translator;
 }) {
   const { downloading, download } = useMediaDownload(message, t);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
+
+  const toggleSpeed = useCallback(() => {
+    const nextSpeed: 1 | 1.5 | 2 = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
+    setSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  }, [speed]);
 
   return (
     <div className="flex items-center gap-2">
-      <audio src={message.media_url} controls className="max-w-60" />
+      <audio
+        ref={audioRef}
+        src={message.media_url}
+        controls
+        className="max-w-60"
+        onPlay={() => {
+          if (audioRef.current) {
+            audioRef.current.playbackRate = speed;
+          }
+        }}
+      />
+      <button
+        type="button"
+        onClick={toggleSpeed}
+        aria-label={`Playback speed ${speed}x`}
+        title={`Change speed (current: ${speed}x)`}
+        className="flex h-7 min-w-8 items-center justify-center rounded-full border border-border/60 bg-background/85 px-2 text-[11px] font-bold text-foreground shadow-xs transition-colors hover:bg-primary hover:text-primary-foreground"
+      >
+        {speed}x
+      </button>
       <MediaActionButton
         icon={Download}
         label={t("download")}

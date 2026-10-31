@@ -15,6 +15,7 @@ import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { playNotificationSound } from "@/lib/sound/notification";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
@@ -217,6 +218,10 @@ function InboxPageInner() {
       const newMsg = event.new;
 
       if (event.eventType === "INSERT") {
+        if (newMsg.sender_type === "customer") {
+          playNotificationSound();
+        }
+
         // Add to messages if it belongs to active conversation
         if (
           activeConversation &&
@@ -631,7 +636,10 @@ function InboxPageInner() {
             toggle — which is itself desktop-only — never affects it. */}
         {contactPanelOpen && (
           <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} />
+            <ContactSidebar
+              contact={activeContact}
+              conversationId={activeConversation?.id}
+            />
           </div>
         )}
       </div>

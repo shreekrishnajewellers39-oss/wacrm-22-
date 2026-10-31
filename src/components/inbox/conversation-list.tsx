@@ -9,9 +9,10 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, X, Pin, PinOff, Archive, ArchiveRestore, Volume2, VolumeX, MoreVertical } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
+import { isSoundEnabled, setSoundEnabled } from "@/lib/sound/notification";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -36,7 +37,10 @@ interface ConversationListProps {
   resyncToken?: number;
 }
 
-type InboxFilter = ConversationStatus | "all" | "unread";
+type InboxFilter = ConversationStatus | "all" | "unread" | "archived";
+
+const PINNED_STORAGE_KEY = "SKJCRM:inbox:pinned-conversations";
+const ARCHIVED_STORAGE_KEY = "SKJCRM:inbox:archived-conversations";
 
 export function ConversationList({
   activeConversationId,
@@ -46,18 +50,90 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
-  
-  const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
-    { label: t("filterAll"), value: "all" },
-    { label: t("filterUnread"), value: "unread" },
-    { label: t("filterOpen"), value: "open" },
-    { label: t("filterPending"), value: "pending" },
-    { label: t("filterClosed"), value: "closed" },
-  ], [t]);
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
+  const [soundActive, setSoundActive] = useState<boolean>(true);
+
+  // Restore client preferences from localStorage
+  useEffect(() => {
+    try {
+      const p = localStorage.getItem(PINNED_STORAGE_KEY);
+      if (p) setPinnedIds(new Set(JSON.parse(p)));
+      const a = localStorage.getItem(ARCHIVED_STORAGE_KEY);
+      if (a) setArchivedIds(new Set(JSON.parse(a)));
+      setSoundActive(isSoundEnabled());
+    } catch {
+      // storage quota or sandboxed
+    }
+  }, []);
+
+  const togglePin = useCallback((id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      try {
+        localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const toggleArchive = useCallback((id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        // If archiving, unpin
+        setPinnedIds((p) => {
+          if (p.has(id)) {
+            const nextP = new Set(p);
+            nextP.delete(id);
+            try {
+              localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(Array.from(nextP)));
+            } catch {}
+            return nextP;
+          }
+          return p;
+        });
+      }
+      try {
+        localStorage.setItem(ARCHIVED_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleToggleSound = useCallback(() => {
+    const next = !soundActive;
+    setSoundActive(next);
+    setSoundEnabled(next);
+  }, [soundActive]);
+  
+  const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => {
+    const opts: { label: string; value: InboxFilter }[] = [
+      { label: t("filterAll"), value: "all" },
+      { label: t("filterUnread"), value: "unread" },
+      { label: t("filterOpen"), value: "open" },
+      { label: t("filterPending"), value: "pending" },
+      { label: t("filterClosed"), value: "closed" },
+    ];
+    if (archivedIds.size > 0) {
+      opts.push({ label: `Archived (${archivedIds.size})`, value: "archived" });
+    }
+    return opts;
+  }, [t, archivedIds.size]);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -153,10 +229,16 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = conversations;
 
-    if (filter === "unread") {
-      result = result.filter((c) => c.unread_count > 0);
-    } else if (filter !== "all") {
-      result = result.filter((c) => c.status === filter);
+    if (filter === "archived") {
+      result = result.filter((c) => archivedIds.has(c.id));
+    } else {
+      // Regular views exclude archived conversations
+      result = result.filter((c) => !archivedIds.has(c.id));
+      if (filter === "unread") {
+        result = result.filter((c) => c.unread_count > 0);
+      } else if (filter !== "all") {
+        result = result.filter((c) => c.status === filter);
+      }
     }
 
     // Contact-based filters (tags via OR logic, exact company match).
@@ -179,8 +261,17 @@ export function ConversationList({
       });
     }
 
-    return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+    // Pinning: pinned conversations stay at the top
+    const sorted = [...result].sort((a, b) => {
+      const aPin = pinnedIds.has(a.id);
+      const bPin = pinnedIds.has(b.id);
+      if (aPin && !bPin) return -1;
+      if (!aPin && bPin) return 1;
+      return 0;
+    });
+
+    return sorted;
+  }, [conversations, filter, search, selectedTagIds, selectedCompany, archivedIds, pinnedIds]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -216,16 +307,30 @@ export function ConversationList({
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
     <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
-      {/* Search + Filter */}
+      {/* Search + Sound Toggle + Filter */}
       <div className="space-y-2 border-b border-border p-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={handleSearchChange}
-            placeholder={t("searchPlaceholder")}
-            className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
-          />
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={handleSearchChange}
+              placeholder={t("searchPlaceholder")}
+              className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            aria-label={soundActive ? "Mute notification sound" : "Unmute notification sound"}
+            title={soundActive ? "Notification sound: ON" : "Notification sound: MUTED"}
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted transition-colors hover:text-foreground",
+              soundActive ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            {soundActive ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-1">
@@ -404,7 +509,11 @@ export function ConversationList({
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
+                isPinned={pinnedIds.has(conv.id)}
+                isArchived={archivedIds.has(conv.id)}
                 onSelect={handleSelect}
+                onTogglePin={(e) => togglePin(conv.id, e)}
+                onToggleArchive={(e) => toggleArchive(conv.id, e)}
                 t={t}
               />
             ))}
@@ -418,14 +527,22 @@ export function ConversationList({
 interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
+  isPinned: boolean;
+  isArchived: boolean;
   onSelect: (conversation: Conversation) => void;
+  onTogglePin: (e?: React.MouseEvent) => void;
+  onToggleArchive: (e?: React.MouseEvent) => void;
   t: ReturnType<typeof useTranslations>;
 }
 
 function ConversationItem({
   conversation,
   isActive,
+  isPinned,
+  isArchived,
   onSelect,
+  onTogglePin,
+  onToggleArchive,
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
@@ -443,10 +560,10 @@ function ConversationItem({
     : "";
 
   return (
-    <button
+    <div
       onClick={handleClick}
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
+        "group relative flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50 cursor-pointer select-none",
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
@@ -465,11 +582,50 @@ function ConversationItem({
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
-            {displayName}
-          </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1.5 truncate">
+            {isPinned && (
+              <span title="Pinned chat" className="shrink-0 flex items-center">
+                <Pin
+                  className="h-3.5 w-3.5 text-primary rotate-45"
+                  fill="currentColor"
+                />
+              </span>
+            )}
+            <span className="truncate text-sm font-medium text-foreground">
+              {displayName}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[10px] text-muted-foreground">{timeAgo}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-card hover:text-foreground transition-opacity"
+                title="Chat options"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border-border bg-popover">
+                <DropdownMenuItem onClick={onTogglePin}>
+                  {isPinned ? (
+                    <PinOff className="mr-2 h-3.5 w-3.5" />
+                  ) : (
+                    <Pin className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  {isPinned ? "Unpin chat" : "Pin chat"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onToggleArchive}>
+                  {isArchived ? (
+                    <ArchiveRestore className="mr-2 h-3.5 w-3.5" />
+                  ) : (
+                    <Archive className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  {isArchived ? "Unarchive chat" : "Archive chat"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-muted-foreground">
@@ -499,6 +655,6 @@ function ConversationItem({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

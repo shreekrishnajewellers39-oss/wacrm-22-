@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus, Forward, Trash2 } from "lucide-react";
+import { CornerUpLeft, Copy, SmilePlus, Forward, Trash2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +23,8 @@ interface MessageActionsProps {
   onReact: (emoji: string) => void;
   onForward?: () => void;
   onDelete?: () => void;
+  isStarred?: boolean;
+  onToggleStar?: () => void;
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -40,6 +42,8 @@ export function MessageActions({
   onReact,
   onForward,
   onDelete,
+  isStarred = false,
+  onToggleStar,
   selectable = false,
   selected = false,
   onToggleSelect,
@@ -193,6 +197,25 @@ export function MessageActions({
             title="Forward"
           >
             <Forward className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {onToggleStar && (
+          <button
+            type="button"
+            onClick={() => {
+              onToggleStar();
+              setTouchOpen(false);
+            }}
+            className={cn(
+              "flex h-5 w-5 items-center justify-center rounded-full transition-colors",
+              isStarred
+                ? "text-amber-400 hover:text-amber-500"
+                : "text-popover-foreground hover:bg-muted hover:text-amber-400"
+            )}
+            aria-label={isStarred ? "Unstar" : "Star"}
+            title={isStarred ? "Unstar message" : "Star message"}
+          >
+            <Star className={cn("h-3.5 w-3.5", isStarred && "fill-amber-400")} />
           </button>
         )}
         <button

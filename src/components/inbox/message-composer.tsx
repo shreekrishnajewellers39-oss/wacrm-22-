@@ -418,6 +418,98 @@ export function MessageComposer({
     [stageUpload],
   );
 
+  // Direct paste & drag-drop handling (Ctrl+V and file drops)
+  const handleFileProcess = useCallback(
+    (file: File) => {
+      if (inputsDisabled || busy) return;
+
+      const mime = file.type.toLowerCase();
+      if (mime.startsWith("image/")) {
+        void stageUpload("image", file);
+      } else if (mime.startsWith("video/")) {
+        void stageUpload("video", file);
+      } else {
+        void stageUpload("document", file);
+      }
+    },
+    [inputsDisabled, busy, stageUpload]
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      if (inputsDisabled || busy) return;
+
+      // 1. Check clipboard files
+      if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+        const file = e.clipboardData.files[0];
+        if (
+          file &&
+          (file.type.startsWith("image/") ||
+            file.type.startsWith("video/") ||
+            file.type.includes("pdf") ||
+            file.type.includes("document"))
+        ) {
+          e.preventDefault();
+          handleFileProcess(file);
+          return;
+        }
+      }
+
+      // 2. Check clipboard items (e.g. copied screenshots from Snipping tool or browser)
+      if (e.clipboardData.items) {
+        for (let i = 0; i < e.clipboardData.items.length; i++) {
+          const item = e.clipboardData.items[i];
+          if (item.type.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (file) {
+              e.preventDefault();
+              handleFileProcess(file);
+              return;
+            }
+          }
+        }
+      }
+    },
+    [inputsDisabled, busy, handleFileProcess]
+  );
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!inputsDisabled && !busy) {
+        setIsDragging(true);
+      }
+    },
+    [inputsDisabled, busy]
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      if (inputsDisabled || busy) return;
+
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          handleFileProcess(file);
+        }
+      }
+    },
+    [inputsDisabled, busy, handleFileProcess]
+  );
+
   // ---- Voice recording (client-side Ogg/Opus, no server transcode) ---
 
   // The encoded Ogg/Opus file from opus-recorder → upload as an audio
@@ -536,7 +628,21 @@ export function MessageComposer({
   // ---- Render --------------------------------------------------------
 
   return (
-    <div className="border-t border-border bg-card p-3">
+    <div
+      className="relative border-t border-border bg-card p-3"
+      onPaste={handlePaste}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-background/95 backdrop-blur-xs">
+          <div className="flex flex-col items-center gap-1 text-primary">
+            <ImageIcon className="h-8 w-8 animate-bounce" />
+            <span className="text-sm font-semibold">Drop photo or file here to send</span>
+          </div>
+        </div>
+      )}
       {replyTo && (
         <div className="mb-2">
           <ReplyQuote
@@ -731,6 +837,7 @@ export function MessageComposer({
             value={text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={
               readOnly
                 ? t("readOnlyPlaceholder")

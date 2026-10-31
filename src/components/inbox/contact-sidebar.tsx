@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Deal, ContactNote, Tag, Message } from "@/types";
 import {
   Phone,
   Mail,
@@ -15,6 +15,11 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Image as ImageIcon,
+  Video,
+  FileText,
+  Link2,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,9 +29,10 @@ import { contactHandle } from "@/lib/whatsapp/wa-identity";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  conversationId?: string | null;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversationId }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
@@ -38,13 +44,17 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
+  // Media, Links & Docs state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [mediaTab, setMediaTab] = useState<"media" | "docs" | "links">("media");
+
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
+    // Fetch deals, notes, tags, and media messages in parallel
+    const [dealsRes, notesRes, tagsRes, msgsRes] = await Promise.all([
       supabase
         .from("deals")
         .select("*, stage:pipeline_stages(*)")
@@ -59,10 +69,19 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         .from("contact_tags")
         .select("id, tag_id, tags(*)")
         .eq("contact_id", contact.id),
+      conversationId
+        ? supabase
+            .from("messages")
+            .select("*")
+            .eq("conversation_id", conversationId)
+            .order("created_at", { ascending: false })
+            .limit(100)
+        : Promise.resolve({ data: [] }),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
+    if (msgsRes.data) setMessages(msgsRes.data as Message[]);
     if (tagsRes.data) {
       const mapped = tagsRes.data
         .filter((ct: Record<string, unknown>) => ct.tags)
@@ -72,7 +91,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         }));
       setTags(mapped);
     }
-  }, [contact]);
+  }, [contact, conversationId]);
 
   // Load on contact change. setContactData/setTags run inside async
   // Supabase callbacks, not synchronously in the effect body.
@@ -134,6 +153,30 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const displayName = contact.name || contactHandle(contact);
   const initials = displayName.charAt(0).toUpperCase();
 
+  const mediaItems = useMemo(
+    () => messages.filter((m) => (m.content_type === "image" || m.content_type === "video") && m.media_url),
+    [messages]
+  );
+  const docItems = useMemo(
+    () => messages.filter((m) => (m.content_type === "document" || m.content_type === "audio") && m.media_url),
+    [messages]
+  );
+  const linkItems = useMemo(() => {
+    const list: { url: string; date: string }[] = [];
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    for (const m of messages) {
+      if (m.content_text) {
+        const matches = m.content_text.match(urlRegex);
+        if (matches) {
+          for (const url of matches) {
+            list.push({ url, date: m.created_at });
+          }
+        }
+      }
+    }
+    return list;
+  }, [messages]);
+
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
       <ScrollArea className="flex-1">
@@ -182,6 +225,148 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 <span className="truncate">{contact.email}</span>
               </div>
             )}
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Media, Links & Docs Gallery */}
+          <div>
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <ImageIcon className="h-3 w-3" />
+                <span>Media, Links & Docs</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                {mediaItems.length + docItems.length + linkItems.length}
+              </span>
+            </div>
+
+            <div className="mt-2 flex border-b border-border text-xs">
+              <button
+                type="button"
+                onClick={() => setMediaTab("media")}
+                className={cn(
+                  "flex-1 pb-1.5 font-medium transition-colors border-b-2 -mb-px text-center",
+                  mediaTab === "media"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Media ({mediaItems.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaTab("docs")}
+                className={cn(
+                  "flex-1 pb-1.5 font-medium transition-colors border-b-2 -mb-px text-center",
+                  mediaTab === "docs"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Docs ({docItems.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaTab("links")}
+                className={cn(
+                  "flex-1 pb-1.5 font-medium transition-colors border-b-2 -mb-px text-center",
+                  mediaTab === "links"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Links ({linkItems.length})
+              </button>
+            </div>
+
+            <div className="mt-2">
+              {mediaTab === "media" && (
+                mediaItems.length === 0 ? (
+                  <p className="px-1 py-3 text-center text-xs text-muted-foreground">
+                    No photos or videos
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                    {mediaItems.map((m) => (
+                      <a
+                        key={m.id}
+                        href={m.media_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative aspect-square overflow-hidden rounded-md bg-muted hover:opacity-90 transition-opacity"
+                        title={m.content_text || "View photo"}
+                      >
+                        {m.content_type === "image" ? (
+                          <img
+                            src={m.media_url}
+                            alt={m.content_text || "Image"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-muted/80">
+                            <Video className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {mediaTab === "docs" && (
+                docItems.length === 0 ? (
+                  <p className="px-1 py-3 text-center text-xs text-muted-foreground">
+                    No documents
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                    {docItems.map((m) => (
+                      <a
+                        key={m.id}
+                        href={m.media_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 rounded-md bg-muted p-2 text-xs hover:bg-muted/80 transition-colors"
+                      >
+                        <FileText className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="flex-1 truncate text-foreground font-medium">
+                          {m.content_text || (m.content_type === "audio" ? "Voice Note" : "Document")}
+                        </span>
+                        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      </a>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {mediaTab === "links" && (
+                linkItems.length === 0 ? (
+                  <p className="px-1 py-3 text-center text-xs text-muted-foreground">
+                    No links shared
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                    {linkItems.map((item, idx) => (
+                      <a
+                        key={idx}
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 rounded-md bg-muted p-2 text-xs hover:bg-muted/80 transition-colors"
+                      >
+                        <Link2 className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="flex-1 truncate text-foreground">
+                          {item.url}
+                        </span>
+                        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      </a>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
           </div>
 
           {/* Divider */}
