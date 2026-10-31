@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus } from "lucide-react";
+import { CornerUpLeft, Copy, SmilePlus, Forward } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +20,7 @@ interface MessageActionsProps {
   message: Message;
   onReply: () => void;
   onReact: (emoji: string) => void;
+  onForward?: () => void;
   children: ReactNode;
 }
 
@@ -32,6 +33,7 @@ export function MessageActions({
   message,
   onReply,
   onReact,
+  onForward,
   children,
 }: MessageActionsProps) {
   const t = useTranslations("Inbox.actions");
@@ -133,14 +135,30 @@ export function MessageActions({
           onClick={handleReply}
           className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-muted hover:text-foreground"
           aria-label={t("reply")}
+          title={t("reply")}
         >
           <CornerUpLeft className="h-3.5 w-3.5" />
         </button>
+        {onForward && (
+          <button
+            type="button"
+            onClick={() => {
+              onForward();
+              setTouchOpen(false);
+            }}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Forward"
+            title="Forward"
+          >
+            <Forward className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopy}
           className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-muted hover:text-foreground"
           aria-label={t("copyText")}
+          title={t("copyText")}
         >
           <Copy className="h-3.5 w-3.5" />
         </button>

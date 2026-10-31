@@ -61,7 +61,44 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     .split(',')
     .map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
 
-  const phoneIdx = headers.indexOf('phone');
+  const PHONE_ALIASES = [
+    'phone',
+    'phone number',
+    'phone 1 - value',
+    'phone 1',
+    'mobile',
+    'mobile phone',
+    'mobile number',
+    'contact number',
+    'contact',
+    'telephone',
+  ];
+  const NAME_ALIASES = [
+    'name',
+    'full name',
+    'contact name',
+    'display name',
+    'first name',
+  ];
+  const EMAIL_ALIASES = [
+    'email',
+    'e-mail',
+    'email address',
+    'e-mail address',
+    'email 1 - value',
+    'e-mail 1 - value',
+  ];
+  const COMPANY_ALIASES = [
+    'company',
+    'organization',
+    'organization 1 - name',
+    'org',
+    'company name',
+    'business',
+  ];
+  const TAGS_ALIASES = ['tags', 'tag', 'labels', 'group membership'];
+
+  const phoneIdx = headers.findIndex((h) => PHONE_ALIASES.includes(h));
   if (phoneIdx === -1) {
     return {
       rows: [],
@@ -71,10 +108,10 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
     };
   }
 
-  const nameIdx = headers.indexOf('name');
-  const emailIdx = headers.indexOf('email');
-  const companyIdx = headers.indexOf('company');
-  const tagsIdx = headers.indexOf('tags');
+  const nameIdx = headers.findIndex((h) => NAME_ALIASES.includes(h));
+  const emailIdx = headers.findIndex((h) => EMAIL_ALIASES.includes(h));
+  const companyIdx = headers.findIndex((h) => COMPANY_ALIASES.includes(h));
+  const tagsIdx = headers.findIndex((h) => TAGS_ALIASES.includes(h));
 
   const rows: ParsedContactRow[] = [];
 

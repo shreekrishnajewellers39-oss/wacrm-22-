@@ -134,6 +134,19 @@ export function validateHeader(
         `Header text exceeds ${TEMPLATE_LIMITS.headerTextMaxLength} chars (got ${header_content.length}).`,
       );
     }
+    if (/[\r\n]/.test(header_content)) {
+      throw new Error('Header text cannot contain newlines (Meta rule).');
+    }
+    if (/\p{Extended_Pictographic}/u.test(header_content)) {
+      throw new Error(
+        'Header text cannot contain emojis (Meta rule). Please put emojis in the Body text instead.',
+      );
+    }
+    if (/[*_~`]/.test(header_content)) {
+      throw new Error(
+        'Header text cannot contain formatting characters like *, _, ~, ` (Meta rule).',
+      );
+    }
     const indices = extractVariableIndices(header_content);
     if (indices.length > 1) {
       throw new Error(

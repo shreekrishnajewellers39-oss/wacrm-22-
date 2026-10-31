@@ -94,6 +94,21 @@ describe('validateHeader', () => {
       validateHeader({ header_type: 'text', header_content: 'Hello {{2}}' }),
     ).toThrow(/must be \{\{1\}\}/);
   });
+  it('text header rejects newlines', () => {
+    expect(() =>
+      validateHeader({ header_type: 'text', header_content: 'Line 1\nLine 2' }),
+    ).toThrow(/cannot contain newlines/);
+  });
+  it('text header rejects emojis', () => {
+    expect(() =>
+      validateHeader({ header_type: 'text', header_content: '🪔 SPECIAL' }),
+    ).toThrow(/cannot contain emojis/);
+  });
+  it('text header rejects formatting characters', () => {
+    expect(() =>
+      validateHeader({ header_type: 'text', header_content: '*SPECIAL*' }),
+    ).toThrow(/cannot contain formatting/);
+  });
   it('image header requires a URL or handle', () => {
     expect(() => validateHeader({ header_type: 'image' })).toThrow(
       /requires either/,

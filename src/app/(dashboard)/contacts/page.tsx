@@ -162,7 +162,12 @@ export default function ContactsPage() {
 
       if (term) {
         const like = `%${term}%`;
-        query = query.or(`name.ilike.${like},phone.ilike.${like},email.ilike.${like}`);
+        const digits = term.replace(/\D/g, '');
+        const phoneNormalizedFilter =
+          digits.length >= 3 ? `,phone_normalized.ilike.%${digits}%` : '';
+        query = query.or(
+          `name.ilike.${like},phone.ilike.${like},email.ilike.${like}${phoneNormalizedFilter}`
+        );
       }
 
       const { data, count: exactCount, error } = await query;

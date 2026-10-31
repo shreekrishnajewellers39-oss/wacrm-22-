@@ -145,9 +145,20 @@ export function ContactForm({
 
     // Hard-block an exact duplicate on create (the DB unique index is
     // the real backstop; this avoids a round-trip + a raw error toast).
-    if (!isEdit && dupMatch?.exact) {
-      toast.error(t('toastConflict'));
-      return;
+    if (!isEdit && accountId) {
+      let currentMatch = dupMatch;
+      if (!currentMatch) {
+        const existing = await findExistingContact(supabase, accountId, phone.trim());
+        if (existing) {
+          currentMatch = { contact: existing, exact: isExactMatch(existing, phone.trim()) };
+          setDupMatch(currentMatch);
+        }
+      }
+      if (currentMatch?.exact) {
+        const existingName = currentMatch.contact.name ? `: ${currentMatch.contact.name}` : '';
+        toast.error(`${t('toastConflict')}${existingName}`);
+        return;
+      }
     }
 
     setSaving(true);
@@ -215,15 +226,20 @@ export function ContactForm({
       // normalizes equal). Surface it as the friendly duplicate notice
       // and, for new contacts, point the user at the existing record.
       if (isUniqueViolation(err)) {
-        toast.error(t('toastConflict'));
         if (!isEdit && accountId) {
           const existing = await findExistingContact(
             supabase,
             accountId,
             phone.trim(),
           );
-          if (existing) setDupMatch({ contact: existing, exact: true });
+          if (existing) {
+            setDupMatch({ contact: existing, exact: true });
+            const existingName = existing.name ? `: ${existing.name}` : '';
+            toast.error(`${t('toastConflict')}${existingName}`);
+            return;
+          }
         }
+        toast.error(t('toastConflict'));
         return;
       }
       const message = err instanceof Error ? err.message : t('toastError');

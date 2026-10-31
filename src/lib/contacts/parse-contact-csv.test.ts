@@ -69,23 +69,24 @@ describe('parseContactCsv', () => {
     });
   });
 
-  it('returns empty tagNames when tags column is absent', () => {
-    const csv = `phone,name
-+15551234567,Alice`;
+  it('recognizes Google Contacts and mobile CSV header aliases', () => {
+    const csv = `Name,Phone 1 - Value,E-mail 1 - Value,Organization 1 - Name
+Alice,+15551234567,alice@example.com,Acme Corp`;
 
     expect(parseContactCsv(csv)).toEqual({
       hasPhoneColumn: true,
       hasTagsColumn: false,
-      hasCompanyColumn: false,
+      hasCompanyColumn: true,
       rows: [
         {
           phone: '+15551234567',
           name: 'Alice',
-          email: undefined,
-          company: undefined,
+          email: 'alice@example.com',
+          company: 'Acme Corp',
           tagNames: [],
         },
       ],
     });
   });
 });
+

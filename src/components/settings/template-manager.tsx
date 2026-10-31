@@ -233,7 +233,10 @@ export function TemplateManager() {
           : undefined,
       body_text: form.body_text.trim(),
       footer_text: form.footer_text.trim() || undefined,
-      buttons: form.buttons.length > 0 ? form.buttons : undefined,
+      buttons:
+        form.buttons.length > 0
+          ? form.buttons.map((b) => ({ ...b, text: b.text.trim() }))
+          : undefined,
       sample_values:
         Object.keys(sample_values).length > 0 ? sample_values : undefined,
     };

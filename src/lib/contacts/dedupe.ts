@@ -46,16 +46,40 @@ export async function findExistingContact(
 
   const suffix = normalized.length >= 8 ? normalized.slice(-8) : normalized;
 
-  const { data, error } = await db
+  const query = db
     .from("contacts")
     .select("*")
-    .eq("account_id", accountId)
-    .like("phone", `%${suffix}`);
+    .eq("account_id", accountId);
+
+  let data: ExistingContact[] | null = null;
+  let error: unknown = null;
+
+  // Search by phone_normalized (exact or suffix) so formatting noise in
+  // contacts.phone never causes a false negative. Falls back to .like("phone", ...)
+  // if a query stub does not implement .or().
+  if (typeof (query as unknown as { or?: unknown }).or === "function") {
+    const res = await (query as unknown as {
+      or: (filter: string) => Promise<{ data: ExistingContact[] | null; error: unknown }>;
+    }).or(
+      `phone_normalized.eq.${normalized},phone_normalized.like.%${suffix},phone.like.%${suffix}`,
+    );
+    data = res.data;
+    error = res.error;
+  } else {
+    const res = await (query as unknown as {
+      like: (col: string, val: string) => Promise<{ data: ExistingContact[] | null; error: unknown }>;
+    }).like("phone", `%${suffix}`);
+    data = res.data;
+    error = res.error;
+  }
 
   if (error || !data) return null;
 
+  const candidates = data as ExistingContact[];
   return (
-    (data as ExistingContact[]).find((c) => phonesMatch(c.phone, phone)) ?? null
+    candidates.find((c) => isExactMatch(c, phone)) ??
+    candidates.find((c) => phonesMatch(c.phone, phone)) ??
+    null
   );
 }
 

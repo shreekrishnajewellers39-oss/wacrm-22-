@@ -50,6 +50,7 @@ import {
 } from "./message-composer";
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
+import { ForwardDialog } from "./forward-dialog";
 import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
 import { renderTemplateBody } from "@/lib/whatsapp/template-body";
@@ -174,6 +175,7 @@ export function MessageThread({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -1173,6 +1175,7 @@ export function MessageThread({
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
+                        onForward={() => setForwardMessage(msg)}
                       >
                         <MessageBubble
                           message={msg}
@@ -1233,6 +1236,17 @@ export function MessageThread({
         activeId={mediaMessageId}
         onActiveIdChange={handleMediaChange}
         contactLabel={contactDisplayName}
+        onForward={(msg) => setForwardMessage(msg)}
+      />
+
+      {/* Forward message / media dialog */}
+      <ForwardDialog
+        open={forwardMessage !== null}
+        onOpenChange={(open) => {
+          if (!open) setForwardMessage(null);
+        }}
+        message={forwardMessage}
+        currentConversationId={conversation.id}
       />
     </div>
   );

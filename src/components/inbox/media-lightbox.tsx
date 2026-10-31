@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   ExternalLink,
+  Forward,
   ImageOff,
   Loader2,
   ZoomIn,
@@ -26,6 +27,7 @@ import {
 import { useMediaBlobUrl } from "@/hooks/use-media-blob-url";
 import { downloadMediaMessage } from "@/lib/media/download";
 import { galleryIndexOf, type MediaGalleryItem } from "@/lib/media/gallery";
+import type { Message } from "@/types";
 
 /**
  * Full-size viewer for the images and videos in the open conversation
@@ -50,6 +52,7 @@ interface MediaLightboxProps {
   onActiveIdChange: (id: string | null) => void;
   /** Display name used for customer-sent media. */
   contactLabel: string;
+  onForward?: (message: Message) => void;
 }
 
 export function MediaLightbox({
@@ -57,6 +60,7 @@ export function MediaLightbox({
   activeId,
   onActiveIdChange,
   contactLabel,
+  onForward,
 }: MediaLightboxProps) {
   const t = useTranslations("Inbox.mediaViewer");
 
@@ -157,6 +161,16 @@ export function MediaLightbox({
             >
               <ExternalLink className="h-4 w-4" />
             </a>
+            {onForward && (
+              <ToolbarButton
+                icon={Forward}
+                label="Forward"
+                onClick={() => {
+                  onActiveIdChange(null);
+                  onForward(item.message);
+                }}
+              />
+            )}
             <ToolbarButton
               icon={Download}
               label={t("download")}
