@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus, Forward } from "lucide-react";
+import { CornerUpLeft, Copy, SmilePlus, Forward, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Message } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -21,6 +22,10 @@ interface MessageActionsProps {
   onReply: () => void;
   onReact: (emoji: string) => void;
   onForward?: () => void;
+  onDelete?: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   children: ReactNode;
 }
 
@@ -34,6 +39,10 @@ export function MessageActions({
   onReply,
   onReact,
   onForward,
+  onDelete,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
   children,
 }: MessageActionsProps) {
   const t = useTranslations("Inbox.actions");
@@ -77,6 +86,39 @@ export function MessageActions({
     onReply();
     setTouchOpen(false);
   };
+
+  if (selectable) {
+    return (
+      <div
+        className={cn(
+          "flex w-full items-center gap-3 py-1 px-2 rounded-lg transition-colors cursor-pointer select-none",
+          selected && "bg-primary/10",
+          isAgent ? "justify-end" : "justify-start"
+        )}
+        onClick={onToggleSelect}
+      >
+        {!isAgent && (
+          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={selected}
+              onCheckedChange={onToggleSelect}
+              aria-label="Select message"
+            />
+          </div>
+        )}
+        <div className="min-w-0 max-w-[75%]">{children}</div>
+        {isAgent && (
+          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={selected}
+              onCheckedChange={onToggleSelect}
+              aria-label="Select message"
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Row alignment lives here (not in MessageBubble) so the `group/actions`
   // hover region matches the bubble's content width — hovering empty space
@@ -162,6 +204,20 @@ export function MessageActions({
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => {
+              onDelete();
+              setTouchOpen(false);
+            }}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-red-500/10 hover:text-red-400"
+            aria-label={t("delete")}
+            title={t("delete")}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
       </div>
     </div>

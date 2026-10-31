@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
@@ -27,10 +28,25 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  CheckSquare,
+  Trash2,
+  MoreVertical,
+  X,
+  Loader2,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -171,6 +187,7 @@ export function MessageThread({
   const tQuote = useTranslations("Inbox.replyQuote");
 
   const { user } = useAuth();
+  const router = useRouter();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -178,6 +195,90 @@ export function MessageThread({
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
+
+  // Selection & Delete state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [singleDeleteTarget, setSingleDeleteTarget] = useState<Message | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmDeleteConversation, setConfirmDeleteConversation] = useState(false);
+  const [deletingMessages, setDeletingMessages] = useState(false);
+
+  // Clear selection if conversation changes
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedMessageIds(new Set());
+  }, [conversation?.id]);
+
+  const handleToggleSelectMessage = useCallback((msgId: string) => {
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+      } else {
+        next.add(msgId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleDeleteSingleMessage = useCallback(async (msg: Message) => {
+    setDeletingMessages(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("messages").delete().eq("id", msg.id);
+      if (error) throw error;
+      onMessagesLoaded(messages.filter((m) => m.id !== msg.id));
+      toast.success("Message deleted");
+      setSingleDeleteTarget(null);
+    } catch (err) {
+      console.error("Failed to delete message:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to delete message");
+    } finally {
+      setDeletingMessages(false);
+    }
+  }, [messages, onMessagesLoaded]);
+
+  const handleBulkDeleteMessages = useCallback(async () => {
+    if (selectedMessageIds.size === 0) return;
+    setDeletingMessages(true);
+    try {
+      const ids = Array.from(selectedMessageIds);
+      const supabase = createClient();
+      const { error } = await supabase.from("messages").delete().in("id", ids);
+      if (error) throw error;
+      onMessagesLoaded(messages.filter((m) => !selectedMessageIds.has(m.id)));
+      toast.success(`${ids.length} messages deleted`);
+      setConfirmBulkDelete(false);
+      setSelectionMode(false);
+      setSelectedMessageIds(new Set());
+    } catch (err) {
+      console.error("Failed to bulk delete messages:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to delete messages");
+    } finally {
+      setDeletingMessages(false);
+    }
+  }, [messages, selectedMessageIds, onMessagesLoaded]);
+
+  const handleDeleteConversation = useCallback(async () => {
+    if (!conversation) return;
+    setDeletingMessages(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("conversations").delete().eq("id", conversation.id);
+      if (error) throw error;
+      toast.success("Conversation deleted");
+      setConfirmDeleteConversation(false);
+      onBack?.();
+      if (onRefresh) onRefresh();
+      router.push("/inbox");
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to delete conversation");
+    } finally {
+      setDeletingMessages(false);
+    }
+  }, [conversation, onBack, onRefresh, router]);
   // Purely visual spin state for the manual-refresh button. The actual
   // refetch is fire-and-forget through `onRefresh` (which bumps the
   // parent's resyncToken); the 700ms spin is just feedback so the click
@@ -1114,8 +1215,101 @@ export function MessageThread({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Select Messages toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectionMode((prev) => !prev);
+              setSelectedMessageIds(new Set());
+            }}
+            aria-label="Select messages"
+            title="Select messages"
+            className={cn(
+              "inline-flex h-7 items-center gap-1 px-2 text-xs rounded-md transition-colors",
+              selectionMode
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <CheckSquare className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Select</span>
+          </button>
+
+          {/* Conversation more actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+              <MoreVertical className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="border-border bg-popover">
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectionMode((prev) => !prev);
+                  setSelectedMessageIds(new Set());
+                }}
+              >
+                <CheckSquare className="mr-2 h-4 w-4" />
+                {selectionMode ? "Cancel Selection" : "Select Messages"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem
+                onClick={() => setConfirmDeleteConversation(true)}
+                className="text-red-400 focus:text-red-400 focus:bg-red-500/10 cursor-pointer"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Conversation
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      {/* Selection Action Bar (shown when selectionMode is true) */}
+      {selectionMode && (
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-card/95 px-4 py-2 text-sm backdrop-blur-sm sticky top-0 z-20 shadow-xs">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={messages.length > 0 && selectedMessageIds.size === messages.length}
+              indeterminate={selectedMessageIds.size > 0 && selectedMessageIds.size < messages.length}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSelectedMessageIds(new Set(messages.map((m) => m.id)));
+                } else {
+                  setSelectedMessageIds(new Set());
+                }
+              }}
+            />
+            <span className="text-xs font-medium text-foreground">
+              {selectedMessageIds.size} selected
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedMessageIds.size > 0 && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setConfirmBulkDelete(true)}
+                disabled={deletingMessages}
+                className="h-7 gap-1 text-xs bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete ({selectedMessageIds.size})
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSelectionMode(false);
+                setSelectedMessageIds(new Set());
+              }}
+              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
@@ -1171,11 +1365,15 @@ export function MessageThread({
                       <MessageActions
                         key={msg.id}
                         message={msg}
+                        selectable={selectionMode}
+                        selected={selectedMessageIds.has(msg.id)}
+                        onToggleSelect={() => handleToggleSelectMessage(msg.id)}
                         onReply={() => handleStartReply(msg)}
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
                         onForward={() => setForwardMessage(msg)}
+                        onDelete={() => setSingleDeleteTarget(msg)}
                       >
                         <MessageBubble
                           message={msg}
@@ -1248,6 +1446,108 @@ export function MessageThread({
         message={forwardMessage}
         currentConversationId={conversation.id}
       />
+
+      {/* Single message delete confirmation */}
+      <Dialog
+        open={singleDeleteTarget !== null}
+        onOpenChange={(open) => !open && setSingleDeleteTarget(null)}
+      >
+        <DialogContent className="max-w-sm bg-popover border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Delete Message?</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Are you sure you want to delete this message? This will remove it from the chat.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={deletingMessages}
+              onClick={() => setSingleDeleteTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deletingMessages}
+              onClick={() => singleDeleteTarget && void handleDeleteSingleMessage(singleDeleteTarget)}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deletingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk messages delete confirmation */}
+      <Dialog
+        open={confirmBulkDelete}
+        onOpenChange={setConfirmBulkDelete}
+      >
+        <DialogContent className="max-w-sm bg-popover border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Delete {selectedMessageIds.size} Messages?</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Are you sure you want to delete the selected {selectedMessageIds.size} messages? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={deletingMessages}
+              onClick={() => setConfirmBulkDelete(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deletingMessages}
+              onClick={() => void handleBulkDeleteMessages()}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deletingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete All Selected"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conversation delete confirmation */}
+      <Dialog
+        open={confirmDeleteConversation}
+        onOpenChange={setConfirmDeleteConversation}
+      >
+        <DialogContent className="max-w-sm bg-popover border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Delete Entire Conversation?</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Are you sure you want to delete this conversation with {displayName}? All messages will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={deletingMessages}
+              onClick={() => setConfirmDeleteConversation(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deletingMessages}
+              onClick={() => void handleDeleteConversation()}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deletingMessages ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Conversation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
